@@ -12,7 +12,7 @@ def test_latent_prompting(test_sentence: str):
     dim_a = pipeline.model_a.config.hidden_size
     dim_b = pipeline.model_b.config.hidden_size
     
-    aligner = LatentAligner(input_dim=dim_a, output_dim=dim_b).to(device)
+    aligner = LatentAligner(dim_a=dim_a, dim_b=dim_b).to(device)
     
     try:
         aligner.load_state_dict(torch.load("./checkpoints/aligner_prompting.pth", map_location=device))
@@ -23,25 +23,25 @@ def test_latent_prompting(test_sentence: str):
 
     print(f"\nModel A Input: '{test_sentence}'")
     with torch.no_grad():
-        # 1. Model A analyzes the text and produces a thought
-        thought_a = pipeline.get_model_a_thought([test_sentence])
+        # 1. Model A analyzes the text and produces a thought sequence
+        thought_a, mask_a = pipeline.get_model_a_thought([test_sentence])
         thought_a = thought_a.to(next(aligner.parameters()).dtype)
         
-        # 2. Aligner translates the thought into a Soft Prompt for Model B
-        soft_prompt = aligner(thought_a) # [1, 1, dim_b]
+        # 2. Aligner translates the thought sequence into Soft Prompts for Model B
+        soft_prompts = aligner(thought_a) # [1, seq_len_a, dim_b]
         
-        # Cast soft_prompt to match Model B's dtype
-        soft_prompt = soft_prompt.to(pipeline.model_b.dtype)
+        # Cast soft_prompts to match Model B's dtype
+        soft_prompts = soft_prompts.to(pipeline.model_b.dtype)
 
-        # 3. Model B generates text starting ONLY from this soft prompt
+        # 3. Model B generates text starting ONLY from these soft prompts
         # We need to construct generation inputs manually since we bypass input_ids
         
         print("-" * 40)
-        print("Model B generating text from Model A's thought...")
+        print("Model B decoding Soft Prompts...")
         
         # Generation loop
         generated_ids = []
-        current_embeds = soft_prompt
+        current_embeds = soft_prompts
         
         # We'll generate up to 20 tokens to see what Model B "understood"
         for _ in range(20):
