@@ -45,18 +45,15 @@ class LatentCommunicationPipeline:
 
     def get_model_a_thought(self, texts: list[str]):
         """
-        Passes text through Model A and extracts a single 'thought' vector
-        via mean-pooling the final hidden state.
+        Passes text through Model A and extracts the full sequence of 'thought' vectors.
         """
         with torch.no_grad():
             inputs_a = self.tokenizer_a(texts, return_tensors="pt", padding=True, truncation=True, max_length=128).to(self.device)
             outputs_a = self.model_a(**inputs_a, output_hidden_states=True)
             hidden_a = outputs_a.hidden_states[-1] 
-            
-            mask_a = inputs_a['attention_mask'].unsqueeze(-1).expand(hidden_a.size()).float()
-            pooled_a = torch.sum(hidden_a * mask_a, 1) / torch.clamp(mask_a.sum(1), min=1e-9)
+            mask_a = inputs_a['attention_mask']
 
-        return pooled_a
+        return hidden_a, mask_a
 
 def get_training_data(dataset_name="wikitext", subset="wikitext-2-raw-v1", split="train", num_samples=5000):
     print(f"Loading dataset {dataset_name} ({subset})...")
